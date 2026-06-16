@@ -1,0 +1,12 @@
+{
+  "name": "makeitgrid",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/cli": "^2"
+  }
+}

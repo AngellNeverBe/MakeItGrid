@@ -1,0 +1,16 @@
+node_modules/
+src-tauri/target/
+src-tauri/Cargo.lock
+release/
+docx/
+html/
+package-lock.json
+*.pyc
+__pycache__/
+.DS_Store
+Thumbs.db
+*.exe
+*.dll
+*.msi
+dist/test.html
+dist/lib/

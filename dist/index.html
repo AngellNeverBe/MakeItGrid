@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>MakeItGrid</title>
+<style>
+  @font-face { font-family: 'Bookinsanity'; src: url('./Bookinsanity.otf') format('opentype'); }
+  :root { --bg: #e8e0d5; --card: #fffef7; --border: #d4a8a0; --text: #2a2a2a; --muted: #8a7a70; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: "楷体","KaiTi","STKaiti","Microsoft YaHei",sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+  #library-view { display: flex; flex-direction: column; height: 100vh; }
+  header { padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--card); display: flex; align-items: center; gap: 14px; -webkit-app-region: drag; }
+  header button, header a, header .win-ctrls, header .win-ctrl { -webkit-app-region: no-drag; }
+  header h1 { font-family: 'Bookinsanity', "楷体","KaiTi",serif; font-size: 20px; font-weight: normal; letter-spacing: 2px; }
+  header .sub { font-size: 12px; color: var(--muted); }
+  .spacer { flex:1; }
+  .drop-zone { margin: 20px 36px; padding: 36px 20px; border: 2px dashed var(--border); border-radius: 8px; text-align: center; color: var(--muted); cursor: pointer; background: var(--card); user-select: none; }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: #b89080; background: #fbf6ee; }
+  .drop-zone .dz-icon { font-size: 38px; margin-bottom: 6px; }
+  .drop-zone .dz-text { font-size: 15px; }
+  .dz-status { font-size: 12px; margin-top: 4px; opacity: .7; min-height: 18px; }
+  .file-list-wrap { flex:1; overflow-y:auto; padding: 0 36px 32px; }
+  .empty { text-align:center; padding:60px 20px; color:var(--muted); font-size:14px; }
+  .file-item { display:flex; align-items:center; gap:12px; padding:11px 16px; margin-bottom:5px; background:var(--card); border-radius:6px; border:1px solid transparent; }
+  .file-item:hover { border-color:var(--border); }
+  .file-item .fname { flex:1; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .file-item .fmeta { font-size:11px; color:var(--muted); min-width:60px; text-align:right; }
+  .fstatus { font-size:11px; padding:3px 10px; border-radius:10px; background:#e8e0d5; color:var(--muted); white-space:nowrap; }
+  .fstatus.ready { background:#dce8d4; color:#5a7a4a; }
+  .btn { padding:5px 14px; border:1px solid var(--border); border-radius:5px; cursor:pointer; font-size:12px; font-family:inherit; background:var(--card); color:var(--text); }
+  .btn:hover { background:#f5f0e8; }
+  .btn.primary { background:#d4a8a0; color:#fffef7; border-color:#d4a8a0; }
+  .btn.primary:hover { background:#c09088; }
+  #preview-view { display:none; flex-direction:column; height:100vh; }
+  .preview-toolbar { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; }
+  .preview-toolbar .back-btn { font-size:18px; cursor:pointer; padding:3px 8px; border-radius:4px; border:1px solid var(--border); background:var(--card); font-family:inherit; }
+  .loading { text-align:center; padding:60px; color:var(--muted); }
+  .error { text-align:center; padding:40px; color:#c66; font-size:13px; white-space:pre-wrap; }
+  .win-ctrls { display:flex; gap:4px; margin-left:12px; }
+  .win-ctrl { width:14px; height:14px; border-radius:50%; cursor:pointer; border:none; transition:opacity .15s; }
+  .win-ctrl:hover { opacity:.7; }
+  .win-ctrl.min { background:#e0c060; }
+  .win-ctrl.max { background:#80c080; }
+  .win-ctrl.close { background:#d87070; }
+</style>
+</head>
+<body>
+
+<div id="library-view">
+  <header>
+    <h1>MakeItGrid</h1>
+    <span class="sub">20x20 标准方格纸</span>
+    <span class="spacer"></span>
+    <button class="btn" onclick="refreshFileList()">刷新列表</button>
+    <a class="btn" href="https://github.com/AngellNeverBe" target="_blank" style="text-decoration:none;">Follow me!</a>
+    <div class="win-ctrls">
+      <button class="win-ctrl min" onclick="winMin()" title="最小化"></button>
+      <button class="win-ctrl max" onclick="winMax()" title="最大化"></button>
+      <button class="win-ctrl close" onclick="winClose()" title="关闭"></button>
+    </div>
+  </header>
+  <div class="drop-zone" id="drop-zone" onclick="pickFiles()">
+    <div class="dz-icon">&#128196;</div>
+    <div class="dz-text">点击选择 .docx 文件，或直接拖入窗口</div>
+    <div class="dz-status" id="dz-status"></div>
+  </div>
+  <div class="file-list-wrap" id="file-list">
+    <div class="empty">正在初始化...</div>
+  </div>
+</div>
+
+<div id="preview-view">
+  <div class="preview-toolbar">
+    <button class="back-btn" onclick="goBack()">&larr;</button>
+    <span id="preview-doc-name" style="font-size:14px;"></span>
+    <span class="spacer"></span>
+    <button class="btn" onclick="openInBrowser()">浏览器中打开</button>
+  </div>
+  <div id="preview-container" style="flex:1;display:flex;align-items:center;justify-content:center;">
+    <div class="loading">点击生成预览</div>
+  </div>
+</div>
+
+<script>
+// ═══════ Tauri API 等待 ═══════
+var invoke, listen, currentFile;
+window._files = [];
+
+// ── 窗口控制 ──
+function winMin() {
+  try { window.__TAURI__.window.appWindow.minimize(); } catch(e) { invoke('win_minimize').catch(function(){}); }
+}
+function winMax() {
+  try { window.__TAURI__.window.appWindow.toggleMaximize(); } catch(e) { invoke('win_toggle_maximize').catch(function(){}); }
+}
+function winClose() {
+  try { window.__TAURI__.window.appWindow.close(); } catch(e) { invoke('win_close').catch(function(){}); }
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+function fmtSize(b) { if(!b)return''; if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; return(b/1048576).toFixed(1)+' MB'; }
+
+function waitForTauri() {
+  return new Promise(function(resolve) {
+    var el = document.getElementById('file-list');
+    var n = 0, max = 50;
+    function check() {
+      n++;
+      if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+        invoke = window.__TAURI__.core.invoke;
+        if (window.__TAURI__.event) listen = window.__TAURI__.event.listen;
+        resolve(true);
+      } else if (n >= max) {
+        el.innerHTML = '<div class="error">Tauri API 未就绪（已等'+(max*100)+'ms）<br>请确认在 MakeItGrid 应用中运行</div>';
+        resolve(false);
+      } else {
+        el.innerHTML = '<div class="empty">连接中... ('+n+'/'+max+')</div>';
+        setTimeout(check, 100);
+      }
+    }
+    check();
+  });
+}
+
+// ═══════ 文件列表 ═══════
+async function refreshFileList() {
+  var el = document.getElementById('file-list');
+  if (!invoke) { el.innerHTML = '<div class="error">API 未就绪</div>'; return; }
+  try {
+    var files = await invoke('scan_docx_dir');
+    window._files = files;
+    if (!files || !files.length) {
+      el.innerHTML = '<div class="empty">暂无文件。点击上方区域选择 .docx，或复制到 docx/ 后点刷新</div>';
+      return;
+    }
+    el.innerHTML = files.map(function(f, i) {
+      return '<div class="file-item">' +
+        '<span class="fname">' + esc(f.name) + '</span>' +
+        '<span class="fmeta">' + fmtSize(f.size) + ' · ' + esc(f.modified) + '</span>' +
+        '<span class="fstatus' + (f.has_html ? ' ready' : '') + '">' + (f.has_html ? '已生成' : '未生成') + '</span>' +
+        (f.has_html
+          ? '<button class="btn primary" onclick="viewPreview(' + i + ')">查看预览</button>'
+          : '<button class="btn primary" onclick="genClick(' + i + ')">生成预览</button>'
+        ) +
+      '</div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="error">扫描失败:<br>' + esc(String(e)) + '</div>';
+  }
+}
+
+// ═══════ 全局索引点击 ═══════
+function genClick(i) {
+  var f = window._files[i];
+  if (!f) return;
+  generateAndShow(f.name);
+}
+function viewPreview(i) {
+  var f = window._files[i];
+  if (!f) return;
+  showPreview(f.name);
+}
+
+// ═══════ 文件选择 ═══════
+async function pickFiles() {
+  var st = document.getElementById('dz-status');
+  if (!invoke) { st.textContent = 'API 未就绪'; return; }
+  st.textContent = '正在打开...';
+  try {
+    var paths = await invoke('pick_docx_file');
+    if (!paths || !paths.length) { st.textContent = ''; return; }
+    st.textContent = '导入中...';
+    for (var i = 0; i < paths.length; i++) {
+      await invoke('import_docx', { source: paths[i] });
+    }
+    st.textContent = '已导入 ' + paths.length + ' 个文件';
+    setTimeout(function() { st.textContent = ''; }, 2000);
+    await refreshFileList();
+  } catch(e) { st.textContent = '错误: ' + String(e); }
+}
+
+// ═══════ 拖拽 ═══════
+(function() {
+  var dz = document.getElementById('drop-zone');
+  dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', function() { dz.classList.remove('drag-over'); });
+  dz.addEventListener('drop', function(e) { e.preventDefault(); dz.classList.remove('drag-over'); });
+  document.addEventListener('dragover', function(e) { e.preventDefault(); });
+  document.addEventListener('drop', function(e) { e.preventDefault(); });
+})();
+
+// 在 waitForTauri 后注册拖拽监听
+function setupDrag() {
+  if (!listen) return;
+  listen('tauri://drag-drop', async function(event) {
+    var paths = event.payload.paths || [];
+    for (var i = 0; i < paths.length; i++) {
+      if (paths[i].toLowerCase().endsWith('.docx')) {
+        try {
+          document.getElementById('dz-status').textContent = '导入: ' + paths[i].split('\\').pop();
+          await invoke('import_docx', { source: paths[i] });
+        } catch(e) { console.error(e); }
+      }
+    }
+    document.getElementById('dz-status').textContent = '';
+    await refreshFileList();
+  });
+}
+
+// ═══════ 查看已生成的预览（不调 Python）═══════
+async function showPreview(filename) {
+  currentFile = filename;
+  document.title = 'MakeItGrid - ' + filename;
+  document.getElementById('library-view').style.display = 'none';
+  document.getElementById('preview-view').style.display = 'flex';
+  document.getElementById('preview-doc-name').textContent = filename;
+  var c = document.getElementById('preview-container');
+  c.innerHTML = '<div class="loading">正在加载...</div>';
+  try {
+    var html = await invoke('read_html_content', { filename: filename });
+    c.innerHTML = '<iframe style="width:100%;height:100%;border:none;" srcdoc="' + escAttr(html) + '"></iframe>';
+  } catch(e) {
+    c.innerHTML = '<div class="error">' + esc(String(e)) + '</div>';
+  }
+}
+
+// ═══════ 生成预览（调 Python）═══════
+async function generateAndShow(filename) {
+  currentFile = filename;
+  document.title = 'MakeItGrid - ' + filename;
+  document.getElementById('library-view').style.display = 'none';
+  document.getElementById('preview-view').style.display = 'flex';
+  document.getElementById('preview-doc-name').textContent = filename;
+  var c = document.getElementById('preview-container');
+  c.innerHTML = '<div class="loading">正在生成方格纸...</div>';
+  try {
+    await invoke('generate_preview', { filename: filename });
+    var html = await invoke('read_html_content', { filename: filename });
+    c.innerHTML = '<iframe style="width:100%;height:100%;border:none;" srcdoc="' + escAttr(html) + '"></iframe>';
+  } catch(e) {
+    c.innerHTML = '<div class="error">' + esc(String(e)) + '</div>';
+  }
+}
+
+function escAttr(s) {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function goBack() {
+  document.title = 'MakeItGrid';
+  document.getElementById('library-view').style.display = 'flex';
+  document.getElementById('preview-view').style.display = 'none';
+  refreshFileList();
+}
+
+async function openInBrowser() {
+  if (!currentFile) return;
+  try { await invoke('open_html_in_browser', { filename: currentFile }); } catch(e) { alert('失败: '+e); }
+}
+
+// ═══════ 启动 ═══════
+(async function() {
+  var ok = await waitForTauri();
+  if (!ok) return;
+  setupDrag();
+  refreshFileList();
+})();
+</script>
+</body>
+</html>
