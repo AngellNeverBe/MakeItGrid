@@ -1,6 +1,6 @@
 {
   "productName": "MakeItGrid",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "com.paracat.makeitgrid",
   "build": {
     "frontendDist": "../dist",
