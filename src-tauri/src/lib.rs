@@ -42,10 +42,8 @@ fn ensure_dirs_and_script() {
     let _ = fs::create_dir_all(&d);
     let _ = fs::create_dir_all(&h);
 
-    // 如果 grid_preview.py 不存在或内容过旧，写入最新版
-    if !py.exists() {
-        let _ = fs::write(&py, GRID_PREVIEW_PY);
-    }
+    // 始终写入最新版 grid_preview.py
+    let _ = fs::write(&py, GRID_PREVIEW_PY);
 }
 
 fn format_time(secs: u64) -> String {
@@ -123,10 +121,12 @@ fn generate_preview(filename: String) -> Result<String, String> {
 
     let d_str = docx_dir().to_string_lossy().to_string();
     let h_str = html_dir().to_string_lossy().to_string();
+    let file_path = docx_path.to_string_lossy().to_string();
 
     let output = Command::new("python")
         .arg(py.to_string_lossy().to_string())
-        .arg(&d_str)
+        .arg("--single")
+        .arg(&file_path)
         .arg(&h_str)
         .output()
         .map_err(|e| format!("运行 Python 失败: {}。请确保已安装 Python 并加入 PATH", e))?;
@@ -217,6 +217,47 @@ fn win_close(window: tauri::Window) {
     let _ = window.close();
 }
 
+#[tauri::command]
+fn delete_preview(filename: String) -> Result<Vec<DocxFile>, String> {
+    let html_name = filename.replace(".docx", "_方格纸预览.html");
+    let path = html_dir().join(&html_name);
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| format!("删除失败: {}", e))?;
+    }
+    Ok(scan_docx_dir())
+}
+
+#[tauri::command]
+fn open_file_location(filename: String) -> Result<(), String> {
+    let path = docx_dir().join(&filename);
+    if !path.exists() {
+        return Err("文件不存在".into());
+    }
+    let path_str = path.to_string_lossy().to_string();
+    // Windows: explorer /select,<file>
+    std::process::Command::new("explorer")
+        .arg(format!("/select,{}", path_str))
+        .spawn()
+        .map_err(|e| format!("打开失败: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_docx(filename: String) -> Result<Vec<DocxFile>, String> {
+    let path = docx_dir().join(&filename);
+    if !path.exists() {
+        return Err("文件不存在".into());
+    }
+    // Also delete the preview if exists
+    let html_name = filename.replace(".docx", "_方格纸预览.html");
+    let html_path = html_dir().join(&html_name);
+    if html_path.exists() {
+        let _ = fs::remove_file(&html_path);
+    }
+    fs::remove_file(&path).map_err(|e| format!("删除失败: {}", e))?;
+    Ok(scan_docx_dir())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -236,6 +277,9 @@ pub fn run() {
             win_minimize,
             win_toggle_maximize,
             win_close,
+            delete_preview,
+            open_file_location,
+            delete_docx,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

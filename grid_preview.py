@@ -4,7 +4,7 @@
 用法: python grid_preview.py [输入目录] [输出目录]
 """
 
-import sys, os, re, webbrowser
+import sys, os, re
 from docx import Document
 
 CELL_SIZE = 32
@@ -341,6 +341,14 @@ def process_docx(filepath, outdir=None):
 
 
 def main():
+    # --single <file.docx> <outdir> : Tauri 单文件模式
+    if len(sys.argv) > 1 and sys.argv[1] == '--single':
+        filepath = sys.argv[2]
+        out_dir = sys.argv[3] if len(sys.argv) > 3 else None
+        out = process_docx(filepath, out_dir)
+        print(f'DONE: {out}')
+        return
+
     target_dir = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
     out_dir = sys.argv[2] if len(sys.argv) > 2 else None
     print(f'\u65b9\u683c\u7eb8\u9884\u89c8\u751f\u6210\u5668 v3.1')
@@ -362,8 +370,7 @@ def main():
             print(f'    \u2717 \u9519\u8bef: {e}')
             import traceback; traceback.print_exc()
     print(f'\n\u5b8c\u6210! \u5171 {len(html_files)} \u4e2a\u9884\u89c8\u3002')
-    if html_files:
-        webbrowser.open('file:///' + html_files[0].replace('\\', '/'))
+    # 不自动打开浏览器（Tauri 应用内预览）
 
 
 if __name__ == '__main__':

@@ -31,6 +31,9 @@
   .btn:hover { background:#f5f0e8; }
   .btn.primary { background:#d4a8a0; color:#fffef7; border-color:#d4a8a0; }
   .btn.primary:hover { background:#c09088; }
+  .btn.icon { padding:4px 6px; font-size:14px; line-height:1; border:none; background:transparent; opacity:.5; }
+  .btn.icon:hover { opacity:1; background:transparent; border-color:transparent; }
+  .btn.icon.danger:hover { color:#c44; }
   #preview-view { display:none; flex-direction:column; height:100vh; }
   .preview-toolbar { padding:10px 24px; background:var(--card); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; }
   .preview-toolbar .back-btn { font-size:18px; cursor:pointer; padding:3px 8px; border-radius:4px; border:1px solid var(--border); background:var(--card); font-family:inherit; }
@@ -142,6 +145,9 @@ async function refreshFileList() {
           ? '<button class="btn primary" onclick="viewPreview(' + i + ')">查看预览</button>'
           : '<button class="btn primary" onclick="genClick(' + i + ')">生成预览</button>'
         ) +
+        (f.has_html ? '<button class="btn" onclick="delPreview(' + i + ')">清除预览</button>' : '') +
+        '<button class="btn" onclick="openFolder(' + i + ')">打开目录</button>' +
+        '<button class="btn" onclick="delFile(' + i + ')" style="color:#c66;">删除</button>' +
       '</div>';
     }).join('');
   } catch(e) {
@@ -159,6 +165,25 @@ function viewPreview(i) {
   var f = window._files[i];
   if (!f) return;
   showPreview(f.name);
+}
+async function delPreview(i) {
+  var f = window._files[i];
+  if (!f) return;
+  if (!confirm('删除 \"' + f.name + '\" 的预览文件？')) return;
+  await invoke('delete_preview', { filename: f.name });
+  refreshFileList();
+}
+async function openFolder(i) {
+  var f = window._files[i];
+  if (!f) return;
+  await invoke('open_file_location', { filename: f.name });
+}
+async function delFile(i) {
+  var f = window._files[i];
+  if (!f) return;
+  if (!confirm('确认删除 \"' + f.name + '\" 及其预览？')) return;
+  await invoke('delete_docx', { filename: f.name });
+  refreshFileList();
 }
 
 // ═══════ 文件选择 ═══════
