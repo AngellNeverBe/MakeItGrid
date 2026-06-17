@@ -13,7 +13,7 @@ ROW_GAP = 12
 PAGE_PAD_TOP = 18
 PAGE_PAD_BOTTOM = 18
 PAGE_PAD_LEFT = 16
-PAGE_PAD_RIGHT = 16
+PAGE_PAD_RIGHT = 7.5
 COLS = 20
 ROWS = 20
 CELLS_PER_PAGE = COLS * ROWS
@@ -182,11 +182,14 @@ def layout_to_pages(paras):
         page_rows = []
         for r in range(ROWS):
             base = r * (COLS + 1)
-            if base >= len(chunk): break
-            cells = chunk[base:base + COLS]
-            ov = chunk[base + COLS] if base + COLS < len(chunk) else None
-            while len(cells) < COLS:
-                cells.append((None, False))
+            if base >= len(chunk):
+                cells = [(None, False)] * COLS
+                ov = None
+            else:
+                cells = list(chunk[base:base + COLS])
+                ov = chunk[base + COLS] if base + COLS < len(chunk) else None
+                while len(cells) < COLS:
+                    cells.append((None, False))
             page_rows.append({'cells': cells, 'overflow': ov})
         pages.append(page_rows)
 
@@ -267,7 +270,7 @@ def generate_html(pages, title_text):
     .cell.merged span.p-right {{ padding: 0px 0px 0px 18px; }}
     .page-label {{
         text-align: right; font-size: 11px; color: #b88;
-        margin-top: 16px; margin-right: 16px;
+        margin-top: 16px; margin-right: 45px;
         font-family: "\u5b8b\u4f53","SimSun",sans-serif;
     }}
     @media print {{
